@@ -118,6 +118,12 @@ masterPred <- cbind(test$UserID,masterPred)
 table(1*(masterPred[,2]>.5),test$Happy)
 (472+876)/1980
 
+masterPred2 <- apply(cbind(test$Happy,testLOG,testLOG),1,mean)
+masterPred2 <- cbind(test$UserID,masterPred2)
+table(1*(masterPred2[,2]>.5),test$Happy)
+colnames(masterPred2) <- c("UserID","Probability1")
+write.csv(masterPred2,"master2.csv",row.names=F)
+getwd()
 
 colnames(masterPred) <- c("UserID","Probability1")
 write.csv(masterPred,"master.csv",row.names=F)
