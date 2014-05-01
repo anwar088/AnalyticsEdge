@@ -1,61 +1,78 @@
 #Week7 Assignment
 
-setwd("~/GitHub/MITx_15-071x-AnalyticsEdge")
+setwd("~/GitHub/AnalyticsEdge")
 
-library("caTools", lib.loc="C:/Users/Tom_Anichini/Documents/R/win-library/2.15")
+library("caTools" lib.loc="C:/Users/Tom_Anichini/Documents/R/win-library/2.15")
 library("rpart", lib.loc="C:/Program Files/R/R-2.15.1/library")
 library("rpart.plot", lib.loc="C:/Users/Tom_Anichini/Documents/R/win-library/2.15")
-library("randomForest", lib.loc="C:/Users/Tom_Anichini/Documents/R/win-library/2.15")
 library(flexclust)
 
 require(ISLR)
 require(tree)
 
 # Install and load mice package
-install.packages("mice")
+#install.packages("mice")
 library(mice)
 
 train <- read.csv("train.csv")
 test <- read.csv("test.csv")
-colnames(train)[1:10]
 test.Happy <- rep(NA,1980)
 test <- cbind(test[1:7],test.Happy,test[8:109])
+colnames(test)[1:10]
 colnames(test) <- c(colnames(test[1:7]),"Happy",colnames(test[9:110]))
-imputedTrain <- complete(mice(train))
-
-
-
-str(train)
+colnames(test)[1:10]
 merged <- rbind(train,test)
-merged[4615:4620,1:10]
-summary(merged$YOB)
+colnames(merged)[1:10]
 merged$YOB[merged$YOB==2039] <- NA
 set.seed(144)
-imputed <- complete(mice(merged))
-summary(imputed)
-train <- imputedTrain
+imputedMerged <- complete(mice(merged))
 
-table(train$HouseholdStatus)
-mergedrows <- nrow(merged)
-merged$kids <- rep(0,mergedrows)
+imputedMergedrows <- nrow(imputedMerged)
+imputedMerged$Kids <- rep(0,imputedMergedrows)
 kidsStatus <- c("Domestic Partners (w/kids)","Married (w/kids)","Single (w/kids)")
-merged$kids[merged$HouseholdStatus == "Domestic Partners (w/kids)"]=1
-merged$kids[merged$HouseholdStatus == "Married (w/kids)"]=1
-merged$kids[merged$HouseholdStatus == "Single (w/kids)"]=1
-table(merged$kids)
-merged$relation <- rep(1,mergedrows)
+imputedMerged$Kids[imputedMerged$HouseholdStatus == "Domestic Partners (w/kids)"]=1
+imputedMerged$Kids[imputedMerged$HouseholdStatus == "Married (w/kids)"]=1
+imputedMerged$Kids[imputedMerged$HouseholdStatus == "Single (w/kids)"]=1
+table(imputedMerged$Kids)
+imputedMerged$Relation <- rep(1,imputedMergedrows)
 relStatus <- c("Domestic Partners (no kids)","Married (no kids)","Single (no kids)")
-merged$relation[merged$HouseholdStatus == "Domestic Partners (no kids)"]=0
-merged$relation[merged$HouseholdStatus == "Married (no kids)"]=0
-merged$relation[merged$HouseholdStatus == "Single (no kids)"]=0
-table(merged$relation)
-colnames(merged)[110:112]
-train <- merged[1:4619,]
-test <- merged[4620:6599,]
+imputedMerged$Relation[imputedMerged$HouseholdStatus == "Domestic Partners (no kids)"]=0
+imputedMerged$Relation[imputedMerged$HouseholdStatus == "Married (no kids)"]=0
+imputedMerged$Relation[imputedMerged$HouseholdStatus == "Single (no kids)"]=0
+table(imputedMerged$Relation)
+colnames(imputedMerged[,111:112]) <- c("Kids","Relation")
+colnames(imputedMerged[,1:11])
+predHappy2 <- cbind(imputedMerged$UserID[4620:6599],1*(imputedMerged$Happy[4620:6599]))
+head(predHappy2)
+write.csv(predHappy2,"predHappyBin.csv")
 
-colnames(train)[1:10]
-mean(train$Happy)
-sd(train$Happy)
+newColumnOrder <- c(1,8,110:112,2:4,6:7,9:109) # removing Household Status, redundant w/ Kids and Relation
+newData <- imputedMerged[,newColumnOrder]
+
+colnames(newData)[1:11]
+summary(newData[,1:11])
+attach(newData)
+typeof(newData[,1])
+typeof(newData[,2])
+typeof(newData[,3])
+
+typeof(newData[,4])
+typeof(newData[,5])
+typeof(newData[,6])
+
+typeof(newData[,7])
+typeof(newData[,8])
+typeof(newData[,9])
+
+typeof(newData[,10])
+typeof(newData[,11])
+
+summary(newData[,3])
+colnames(newData[,1:20])
+
+
+train <- newData[1:4619,]
+test <- newData[4620:6599,]
 
 attach(train)
 tree.happy=tree(Happy~. ,data=train)
@@ -63,16 +80,59 @@ plot(tree.happy)
 summary(tree.happy)
 text(tree.happy,pretty=0)
 tree.happy
-test <- cbind(test[,1:7],test[,9:112])
-test.pred=predict(tree.happy,newdata=test)
+test$Happy <- newData$Happy[4620:6599]
+
+test.pred=1*(predict(tree.happy,newdata=test)>.5)
+testTree <- predict(tree.happy,newdata=test)
+table(test.pred,test$Happy)
+
+(234+978)/(234+978+686+82)
+
+
+trainCART = rpart(Happy~., data=train, method="class")
+testCART = predict(trainCART,newdata=test)
+testCARTpred <- testCART[,2]
+head(testCART)
+table(1*(testCART[,2]>.5),test$Happy)
+(388+859)/(388+859+532+201)
+plot(testCART[,2],test.pred)
+?predict
+
+
+?rpart
+trainLOG <- glm(Happy~., data=train)
+summary(trainLOG)
+testLOG <- predict.glm(trainLOG,newdata=test)
+testLOG[testLOG>=1] <- 0.9999
+testLOG[testLOG<=0] <- 0.0001
+table(1*(testLOG>.5),test$Happy)
+(565+855)/(565+855+355+205)
+glmCSV <- cbind(test$UserID,testLOG)
+colnames(glmCSV) <- c("UserID","Probability1")
+head(glmCSV)
+write.csv(glmCSV,"glm.csv",row.names=F)
+?write.csv
+
+masterPred <- apply(cbind(testCARTpred,testLOG),1,mean)
+masterPred <- cbind(test$UserID,masterPred)
+table(1*(masterPred[,2]>.5),test$Happy)
+(472+876)/1980
+
+
+colnames(masterPred) <- c("UserID","Probability1")
+write.csv(masterPred,"master.csv",row.names=F)
+
 output <- cbind(test$UserID,test.pred)
 head(output)
-write.csv(output,"submission72187.csv")
+write.csv(output,"tree.csv")
 
+
+
+
+head(output)
 
 set.seed(1011)
 
-3220*.7
 traintrain=sample(1:nrow(train),2254)
 train.happy=train[traintrain,]
 test.happy=train[-traintrain,]
@@ -81,65 +141,23 @@ plot(train.tree);text(train.tree,pretty=0)
 test.pred=predict(train.tree,newdata=test.happy)
 with(test.happy,table(1*(test.pred>.5),Happy))
 
-(600+886)/2365
+(331+1129)/(331+1129+175+730)
 
 plot(rownames(table(train$YOB,train$Happy)),table(train$YOB,train$Happy)[,1]/(table(train$YOB,train$Happy)[,1]+table(train$YOB,train$Happy)[,2]))
-baseline <- sum(test.happy$Happy)/966
+baseline <- sum(test.happy$Happy)/2365
 baseline
 
-table(train.happy$YOB)
 
-
-str(train$YOB)
-
-Random Forests
---------------
-  Random forests build lots of bushy trees, and then average them to reduce the variance.
-
-```{r}
-require(randomForest)
-require(MASS)
-set.seed(101)
-dim(train)
-summary(train)
-train.sample=sample(1:nrow(train),2254)
-train.train=train[train.sample,]
-```
-Lets fit a random forest and see how well it performs. We will use the response `medv`, the median housing value (in \$1K dollars)
-
-```{r}
-rf.traintrain=randomForest(Happy~.,data=train[,2:112],subset=train.sample)
-rf.traintrain
-sum(rf.traintrain$importance>20)
-```
-
-The MSR and % variance explained are based on OOB  or _out-of-bag_ estimates, a very clever device in random forests to get honest error estimates. The model reports that `mtry=4`, which is the number of variables randomly chosen at each split. Since $p=13$ here, we could try all 13 possible values of `mtry`. We will do so, record the results, and make a plot.
-
-```{r}
-oob.err=double(7)
-test.err=double(7)
-for(mtry in 1:7){
-  fit=randomForest(Happy~.,data=train[2:110],subset=train.sample,mtry=mtry,ntree=400)
-  oob.err[mtry]=fit$mse[400]
-  pred=predict(fit,train[-train.sample,])
-  test.err[mtry]=with(train[-train.sample,],mean((Happy-pred)^2))
-  cat(mtry," ")
-}
-matplot(1:mtry,cbind(test.err,oob.err),pch=19,col=c("red","blue"),type="b",ylab="Mean Squared Error")
-legend("topright",legend=c("OOB","Test"),pch=19,col=c("red","blue"))
-```
-
-Not too difficult! Although the test-error curve drops below the OOB curve, these are estimates based on data, and so have their own standard errors (which are typically quite large). Notice that the points at the end with `mtry=13` correspond to bagging.
 
 Boosting
 --------
   Boosting builds lots of smaller trees. Unlike random forests, each new tree in boosting tries to patch up the deficiencies of the current ensemble.
 ```{r}
 require(gbm)
-boost.happy=gbm(Happy~.,data=train[train.sample,],distribution="gaussian",n.trees=10000,shrinkage=0.01,interaction.depth=4)
+boost.happy=gbm(Happy~.,data=train[train.sample,],distribution="bernoulli",n.trees=10000,shrinkage=0.01,interaction.depth=4)
 summary(boost.happy)
-plot(boost.happy,i="lstat")
-plot(boost.boston,i="rm")
+plot(boost.happy)
+
 ```
 Lets make a prediction on the test set. With boosting, the number of trees is a tuning parameter, and if we have too many we can overfit. So we should use cross-validation to select the number of trees. We will leave this as an exercise. Instead, we will compute the test error as a function of the number of trees, and make a plot.
 
@@ -152,3 +170,4 @@ plot(n.trees,berr,pch=19,ylab="Mean Squared Error", xlab="# Trees",main="Boostin
 abline(h=min(test.err),col="red")
 ```
 
+summary(train)
