@@ -44,7 +44,7 @@ colnames(imputedMerged[,111:112]) <- c("Kids","Relation")
 colnames(imputedMerged[,1:11])
 predHappy2 <- cbind(imputedMerged$UserID[4620:6599],1*(imputedMerged$Happy[4620:6599]))
 head(predHappy2)
-write.csv(predHappy2,"predHappyBin.csv")
+#write.csv(predHappy2,"predHappyBin.csv")
 
 newColumnOrder <- c(1,8,110:112,2:4,6:7,9:109) # removing Household Status, redundant w/ Kids and Relation
 newData <- imputedMerged[,newColumnOrder]
@@ -94,7 +94,7 @@ testCART = predict(trainCART,newdata=test)
 testCARTpred <- testCART[,2]
 head(testCART)
 table(1*(testCART[,2]>.5),test$Happy)
-(388+859)/(388+859+532+201)
+(425+823)/1980
 plot(testCART[,2],test.pred)
 ?predict
 
@@ -110,7 +110,7 @@ table(1*(testLOG>.5),test$Happy)
 glmCSV <- cbind(test$UserID,testLOG)
 colnames(glmCSV) <- c("UserID","Probability1")
 head(glmCSV)
-write.csv(glmCSV,"glm.csv",row.names=F)
+#write.csv(glmCSV,"glm.csv",row.names=F)
 ?write.csv
 
 masterPred <- apply(cbind(testCARTpred,testLOG),1,mean)
@@ -122,15 +122,15 @@ masterPred2 <- apply(cbind(test$Happy,testLOG,testLOG),1,mean)
 masterPred2 <- cbind(test$UserID,masterPred2)
 table(1*(masterPred2[,2]>.5),test$Happy)
 colnames(masterPred2) <- c("UserID","Probability1")
-write.csv(masterPred2,"master2.csv",row.names=F)
+#write.csv(masterPred2,"master2.csv",row.names=F)
 getwd()
 
 colnames(masterPred) <- c("UserID","Probability1")
-write.csv(masterPred,"master.csv",row.names=F)
+#write.csv(masterPred,"master.csv",row.names=F)
 
 output <- cbind(test$UserID,test.pred)
 head(output)
-write.csv(output,"tree.csv")
+#write.csv(output,"tree.csv")
 
 
 
@@ -153,27 +153,64 @@ plot(rownames(table(train$YOB,train$Happy)),table(train$YOB,train$Happy)[,1]/(ta
 baseline <- sum(test.happy$Happy)/2365
 baseline
 
-
-
-Boosting
---------
-  Boosting builds lots of smaller trees. Unlike random forests, each new tree in boosting tries to patch up the deficiencies of the current ensemble.
-```{r}
-require(gbm)
-boost.happy=gbm(Happy~.,data=train[train.sample,],distribution="bernoulli",n.trees=10000,shrinkage=0.01,interaction.depth=4)
-summary(boost.happy)
-plot(boost.happy)
-
-```
-Lets make a prediction on the test set. With boosting, the number of trees is a tuning parameter, and if we have too many we can overfit. So we should use cross-validation to select the number of trees. We will leave this as an exercise. Instead, we will compute the test error as a function of the number of trees, and make a plot.
-
-```{r}
-n.trees=seq(from=100,to=10000,by=100)
-predmat=predict(boost.happy,newdata=train[-train.sample,],n.trees=n.trees)
-dim(predmat)
-berr=with(train[-train.sample,],apply( (predmat-Happy)^2,2,mean))
-plot(n.trees,berr,pch=19,ylab="Mean Squared Error", xlab="# Trees",main="Boosting Test Error")
-abline(h=min(test.err),col="red")
-```
-
 summary(train)
+
+library(languageR) 
+library(designGG) 
+library(party) 
+data.controls <- cforest_unbiased(ntree=100, mtry=30) 
+set.seed(47)
+system.time(data.cforest10 <- cforest(Happy ~ ., data = train, controls=cforest_unbiased(ntree=10, mtry=5)) )
+system.time(data.cforest100 <- cforest(Happy ~ ., data = train, controls=cforest_unbiased(ntree=100, mtry=5)) )
+system.time(data.cforest500 <- cforest(Happy ~ ., data = train, controls=cforest_unbiased(ntree=500, mtry=5)) )
+system.time(data.cforest1000 <- cforest(Happy ~ ., data = train, controls=cforest_unbiased(ntree=1000, mtry=5)) )
+system.time(data.cforest1000 <- cforest(Happy ~ ., data = train, controls=cforest_unbiased(ntree=1000, mtry=15)) )
+system.time(data.cforest100_30 <- cforest(Happy ~ ., data = train, controls=data.controls) )
+system.time(data.cforest500_30 <- cforest(Happy ~ ., data = train, controls=cforest_unbiased(ntree=500, mtry=30)) )
+system.time(data.cforest1000_30 <- cforest(Happy ~ ., data = train, controls=cforest_unbiased(ntree=1000, mtry=30)) )
+
+pred.rf10 <- predict(data.cforest10,newdata=test,type="prob")
+table(1*(pred.rf10>.5),test$Happy)
+(861+445)/1980
+
+pred.rf <- predict(data.cforest,newdata=test,type="prob")
+table(1*(pred.rf>.5),test$Happy)
+(927+383)/1980
+table(1*(pred.rf>.5),1*(testLOG>.5))
+(1171+477)/1980
+
+pred.rf1000 <- predict(data.cforest1000,newdata=test,type="prob")
+table(1*(pred.rf1000>.5),test$Happy)
+table(1*(pred.rf1000>.5),1*(testLOG>.5))
+
+pred.rf100_30 <- predict(data.cforest100_30,newdata=test,type="prob")
+table(1*(pred.rf100_30>.5),test$Happy)
+(484+859)/1980
+table(1*(pred.rf100_30>.5),1*(testLOG>.5))
+(578+1103)/1980
+predrf100_30 <- unlist(pred.rf100_30)
+predrf100_30 <- cbind(test$UserID,predrf100_30)
+colnames(predrf100_30) <- c("UserID","Probability1")
+head(predrf100_30)
+write.csv(predrf100_30,"predrf100_30.csv",row.names=F)
+
+pred.rf500_30 <- predict(data.cforest500_30,newdata=test,type="prob")
+table(1*(pred.rf500_30>.5),test$Happy)
+(484+859)/1980
+table(1*(pred.rf500_30>.5),1*(testLOG>.5))
+(578+1103)/1980
+predrf500_30 <- unlist(pred.rf500_30)
+predrf500_30 <- cbind(test$UserID,predrf500_30)
+colnames(predrf500_30) <- c("UserID","Probability1")
+head(predrf500_30)
+write.csv(predrf500_30,"predrf500_30.csv",row.names=F)
+
+str(pred.rf1000)
+pred.rf1000[1:10]
+typeof(pred.rf1000)
+predrf1k <- unlist(pred.rf1000)
+predrf1k <- cbind(test$UserID,predrf1k)
+colnames(predrf1k) <- c("UserID","Probability1")
+head(predrf1k)
+write.csv(predrf1k,"predrf1k.csv",row.names=F)
+getwd()
